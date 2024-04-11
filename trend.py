@@ -16,13 +16,12 @@ from pyecharts.components import Table
 '''
 class Trend():
 
-    def __init__(self,project_name):
-        self.project_name = project_name
+    def __init__(self):
+        pass
     
     # 拉取数据的抽象方法
-    def pullData(self, time_node):
+    def pullData(self, time_node=8):
 
-        project_name = self.project_name
         time_ = common.Common().time_node(time_node)
 
         read_sql = " select t2.所属项目 项目, t1.平台店铺id 门店ID, t2.店铺名称, t1.日期, \
@@ -36,28 +35,30 @@ class Trend():
             from every_day t1 \
             left join kitchen_id t2 \
             on t1.平台店铺id = t2.美团店铺id \
-            where t2.所属项目 = '%s' \
-            and t1.日期>= '%s'\
+            where t1.日期>= '%s'\
             and t2.是否画图 = '是' \
-            order by t1.日期;" % (project_name,time_)
+            and t2.所属项目 in ('暴暴锅','炊大妈') \
+            order by t2.顺序;" % time_
 
         income_mt = common.Common().df_from_sql(read_sql).round({'商家实收':0,'拼好饭实收':0,'主站实收':0})
         return income_mt
 
-    def temp(self,income_mt):
+    def temp(self):
+        income_mt = self.pullData()
         id_list = income_mt['店铺名称'].unique().tolist()
         decrease_list = []
         for i in range(len(id_list)):
 
-            x = np.array(range(7))
+            x = np.array(range(8))
             y = income_mt.loc[income_mt['店铺名称']==id_list[i],'商家实收'].to_numpy()
 
             # 调用线性回归，计算回归系数
-            w0, w1 = self.linearFit(x,y)
-            if w1 < 0:
-                decrease_list.append(id_list[i])
+            if len(y) == 8:
+                w0, w1 = self.linearFit(x,y)
+                if w1 < 0:
+                    decrease_list.append(id_list[i])
         str = '，'
-        # print(f'美团实收下降趋势：{str.join(decrease_list)}')
+        print(f'美团实收下降趋势，请及时提升：{str.join(decrease_list)}')
 
     # 计算一元线性回归，得到趋势
     def linearFit(self, x, y):
@@ -68,10 +69,10 @@ class Trend():
         return model.intercept_ , model.coef_
 
     # 双渠道（拼好饭+主站)趋势变化
-    def doubleChannel(self, income_mt):
-
+    def doubleChannel(self):
+        income_mt = self.pullData()
         id_list = income_mt['店铺名称'].unique().tolist()
-        page = Page(layout= Page.DraggablePageLayout,page_title='%s%s'% (common.Common().time_node(1),self.project_name))
+        page = Page(layout= Page.DraggablePageLayout,page_title='%s'% common.Common().time_node(1))
         for i in id_list:
             if (i != '暴暴锅九眼桥') & (i != '梁家巷'):
                 continue
@@ -92,7 +93,7 @@ class Trend():
     # UV值的变化图表
     def trendUV(self, income_mt):
 
-        page = Page(layout= Page.DraggablePageLayout,page_title='%s%sUV'% (common.Common().time_node(1),self.project_name))
+        page = Page(layout= Page.DraggablePageLayout,page_title='%sUV'% common.Common().time_node(1))
         id_list = income_mt['店铺名称'].unique().tolist()
 
         for i in id_list:
@@ -117,7 +118,7 @@ class Trend():
     # 这个函数返回昨日和前7天平均值的波动比对
     def contriRateAvg(self):
 
-        project_name = self.project_name
+        project_name = '暴暴锅'
 
         read_sql = " select t4.店铺名称, t3.平台店铺id,  round(t3.商家实收波动,0) 商家实收波动,\
             (t3.曝光人数lnd+t3.入店率lnd+t3.下单率lnd+t3.客单价lnd) 测试,\
@@ -163,7 +164,7 @@ class Trend():
     # 计算昨日的同比和环比，四个指标的贡献率，time_填2或者8,2是同比，8是环比
     def contriRate(self, time_):
 
-        project_name = self.project_name
+        project_name = '暴暴锅'
 
         read_sql = "select t3.平台店铺id, \
         t4.店铺名称, \
@@ -206,17 +207,18 @@ class Trend():
 
     # 贡献率的条件判断，输出结论
     def resContri(self):
-        
-        res = '%s：%s\n' % (common.Common().time_node(1), self.project_name)
+        project_name = '暴暴锅'
+        res = '%s：%s\n' % (common.Common().time_node(1), project_name)
         temp = ['较上个7天平均实收','同比','环比']
         temp2 = [self.contriRateAvg(),self.contriRate(2),self.contriRate(8)]
+        count_row = 0
         for item, item2 in zip(temp, temp2):
             df = common.Common().df_from_sql(item2)
-            print(df)
+            # print(df)
             for row in df.itertuples():
                 temp = []
                 if getattr(row,'商家实收波动') < 0:
-                    print(f"{getattr(row,'店铺名称')}:{getattr(row,'曝光人数贡献率')}")
+                    # print(f"{getattr(row,'店铺名称')}:{getattr(row,'曝光人数贡献率')}")
                     if getattr(row,'曝光人数贡献率') < 0:
                         temp.append('曝光人数')
                     if getattr(row,'入店率贡献率') < 0:
@@ -225,9 +227,13 @@ class Trend():
                         temp.append('下单率')
                     if getattr(row,'客单价贡献率') < 0:
                         temp.append('客单')
+                    if temp == []:
+                        temp.append('曝光人数、入店率、下单率、客单')
                     res = res + f"{getattr(row,'店铺名称')}实收{item}呈现下降，影响的指标是：{'，'.join(temp)}" + '\n'
+                    count_row+=1
+                    # print(res)
         # print(res)
-        return res
+        return res, count_row
 
 
     def table(self):
@@ -238,12 +244,14 @@ class Trend():
         #     "padding": "2px",
         #     "style": " width:1350px; height:50px; font-size:25px; color:#C0C0C0;"
         # })
-        table.add(headers=[self.resContri()], rows=[], attributes={
-            "style": " width:1350px; height:50px; font-size:25px; color:grey;"
+        text, count_row = self.resContri()
+        table.add(headers=[text], rows=[], attributes={
+            "style": " width:1350px; height:30px; font-size:18px; color:grey;"
         })
         # table.render('大标题.html')
-        print('生成完毕:大标题.html')
-        return table
+        # print('生成完毕:大标题.html')
+
+        return table, count_row
          
 
 if __name__ == '__main__':

@@ -25,7 +25,8 @@ class DrawFlow():
         '''   
         position = []
         if self.project_name == '暴暴锅':
-            startTop = 300
+            startTop = 25*(trend.Trend().table()[1]+1)
+            print(f'暴暴锅：{startTop}')
         else:
             startTop = 30
         for item in range(0,id_list):
@@ -64,8 +65,8 @@ class DrawFlow():
 
         # 调用trend模块，将生成的结论放入网站，目前只支持暴暴锅项目(拼好饭的数据其他项目不准orz)
         if self.project_name == '暴暴锅':
-            conclusion = trend.Trend(self.project_name)
-            page.add(conclusion.table())
+            conclusion = trend.Trend()
+            page.add(conclusion.table()[0])
 
         # 获取要画图的店铺id列表
         id_list = flow_df['店铺名称'].unique().tolist()
@@ -121,9 +122,9 @@ class DrawFlow():
             # 流量的图
             line4 = Line(init_opts=opts.InitOpts(chart_id='exposure%s' % i))\
                 .add_xaxis(flow_line['日期'].apply(lambda x:x.strftime('%m-%d')).tolist())\
-                .add_yaxis("推广流量", flow_line['推广流量'], color='#CD2626')\
-                .add_yaxis("自然流量", flow_line['自然流量'], color='#9400D3')\
-                .add_yaxis("拼好饭流量", flow_line['拼好饭流量'], color='#228B22')\
+                .add_yaxis("推广次数", flow_line['推广流量'], color='#CD2626')\
+                .add_yaxis("自然次数", flow_line['自然流量'], color='#9400D3')\
+                .add_yaxis("拼好饭次数", flow_line['拼好饭流量'], color='#228B22')\
                 .add_yaxis('前10曝光人数',income_line_mt['曝光人数同行'], color='#4682B4')\
                 .set_series_opts(label_opts=opts.LabelOpts(is_show=False),\
                             markpoint_opts=opts.MarkPointOpts(data=[opts.MarkPointItem(type_="max",name="最大值"),  \
